@@ -55,3 +55,32 @@ resource "aws_subnet" "prisub-2" {
         Name = "prisub-2"
     }
 }
+
+#Creating Internet Gateway
+resource "aws_internet_gateway" "igw-main"{
+    vpc_id = aws_vpc.main.vpc_id
+
+    tags ={
+        Name = "igw-main"
+    }
+}
+
+#Creating elastic IP for NAT Gateway
+resource "aws_eip" "nat-eip"{
+    domain = "vpc"
+
+    tags ={
+        Name = "nat-eip"
+    }
+
+}
+
+#Creating NAT Gateway
+resource "aws_nat_gateway" "nat-gw"{
+    allocation_id = aws_eip.nat-eip.id
+    subnet_id = aws_subnet.prisub-1.id
+
+    tags ={
+        Name = "nat-gw"
+    }
+}
