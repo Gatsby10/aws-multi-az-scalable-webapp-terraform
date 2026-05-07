@@ -84,3 +84,33 @@ resource "aws_nat_gateway" "nat-gw"{
         Name = "nat-gw"
     }
 }
+
+#Creating Route table for public subnets
+resource "aws_route_table" "pub-rt"{
+    vpc_id = aws_vpc.main.vpc_id
+
+    tags ={
+        Name = "pub-rt"
+    }
+}
+
+#Creating route table for private subnets
+resource "aws_route_table" "pri-rt"{
+    vpc_id = aws_vpc.main.vpc_id
+
+    tags ={
+        Name = "pri-rt"
+    }
+}
+
+#Creating Public route association
+resource "aws_route_table_association" "pub-rt-association"{
+    subnet_id = aws_subnet.pubsub-1.id
+    route_table_id = aws_route_table.pub-rt.id
+}
+
+#Creating Private route association
+resource "aws_route_table_association" "pri-rt-association"{
+    subnet_id = aws_subnet.prisub-1.id
+    route_table_id = aws_route_table.pri-rt.id
+}
