@@ -114,3 +114,80 @@ resource "aws_route_table_association" "pri-rt-association"{
     subnet_id = aws_subnet.prisub-1.id
     route_table_id = aws_route_table.pri-rt.id
 }
+
+#Creating security group for Frontend
+resource "aws_security_group" "frontend-sg"{
+    vpc_id = aws_vpc.main.vpc_id
+    description = "Frontend security group"
+
+    ingress{
+        description = "ssh access"
+        protocol = "tcp"
+        from_port = 22
+        to_port = 22
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    ingress{
+        description = "http access"
+        protocol = "tcp"
+        from_port = 80
+        to_port = 80
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    ingress{
+        description = "https access"
+        protocol = "tcp"
+        from_port = 443
+        to_port = 443
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+    
+    egress{
+        description = "all outbound traffic"
+        protocol = "-1"
+        from_port = 0
+        to_port = 0
+        cidr_blocks = ["0.0.0.0/0"]
+    } 
+}
+
+#Creating security group for Backend
+resource "aws_security_group" "backend-sg"{
+    vpc_id = aws_vpc.main.vpc_id
+    description = "Database Backend security group"
+
+    ingress{
+        description = "MySQL-Aurora access from frontend"
+        protocol = "tcp"
+        from_port = 3306
+        to_port = 3306
+        security_groups = [aws_security_group.frontend-sg.id] #Allowing access from frontend security group
+    }
+
+    egress{
+        description = "all outbound traffic"
+        protocol = "-1"
+        from_port = 0
+        to_port = 0
+        cidr_blocks = ["0.0.0.0/0"]
+    } 
+}
+
+#Key pair for ssh into the instance
+resource "tls_private_key" "key" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "local_file" "key" {
+  content  = tls_private_key.key.private_key_pem
+  filename = "keypair"
+  file_permission = "400"
+}
+
+resource "aws_key_pair" "key" {
+  key_name   = "keypair"
+  public_key = tls_private_key.key.public_key_openssh
+}
