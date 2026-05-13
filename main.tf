@@ -176,18 +176,60 @@ resource "aws_security_group" "backend-sg"{
 }
 
 #Key pair for ssh into the instance
+#Creating a private key
 resource "tls_private_key" "key" {
   algorithm = "RSA"
   rsa_bits  = 4096
 }
 
+#Saving the private key to a local file
 resource "local_file" "key" {
   content  = tls_private_key.key.private_key_pem
   filename = "keypair"
   file_permission = "400"
 }
 
+#Creating Public key pair for ssh access to the instance
 resource "aws_key_pair" "key" {
   key_name   = "keypair"
   public_key = tls_private_key.key.public_key_openssh
+}
+
+#Creating subnet group for database
+resource "aws_db_subnet_group" "db-subnet-group" {
+    name = "db-subnet-group"
+    subnet_ids = [aws_subnet.prisub-1.id, aws_subnet.prisub-2.id]
+    tags = {
+        Name = "db-subnet-group"
+    }
+}
+
+# AWS Secrets Manager____used to securely store, manage, and retrieve sensitive data
+#1. Creating a secret in AWS Secrets Manager to store database credentials
+resource "aws_secretsmanager_secret" "rds_credentials" {
+    name = "rds_credentials"
+    description = "Database credentials for the private subnet RDS instance"
+
+    #Optional: Automatic rotation of the secret, or set recovery windows
+    recovery_window_in_days = 7
+
+    tags = {
+        Name = "rds_credentials"
+        Environment = "production"
+    }
+}
+
+#2. Storing the database credentials as a secret value in AWS Secrets Manager
+resource "aws_secretsmanager_secret_version" "rds_credentials_version" {
+    secret_id = aws_secretsmanager_secret.rds_credentials.id
+
+    #Storing DB credentials as a JSON object is an AWS best practice
+
+    secret_string = jsonencode({
+        username = "admin"
+        password = "admin123"
+        engine = "mysql"
+        port = 3306
+    })
+
 }
