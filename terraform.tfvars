@@ -1,0 +1,5 @@
+db_name     = "wordpress_db"
+db_username = "admin"
+db_password = "admin123"
+db_host     = "aws_db_instance.rds-instance.endpoint"
+alert_email = "abdullahidamola@gmail.com"
