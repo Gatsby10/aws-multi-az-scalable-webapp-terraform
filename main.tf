@@ -234,7 +234,7 @@ resource "aws_secretsmanager_secret_version" "rds_credentials_version" {
 
 }
 
-#CREATING RDS
+#Creating RDS
 resource "aws_db_instance" "rds-instance" {
     identifier = "rds-instance"
     allocated_storage = 20
