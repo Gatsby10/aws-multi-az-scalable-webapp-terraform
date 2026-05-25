@@ -233,3 +233,40 @@ resource "aws_secretsmanager_secret_version" "rds_credentials_version" {
     })
 
 }
+
+#CREATING RDS
+resource "aws_db_instance" "rds-instance" {
+    identifier = "rds-instance"
+    allocated_storage = 20
+    max_allocated_storage = 100 #Allows RDS to automatically scale storage up to 100 GB as needed
+    storage_type = "gp2"
+    engine = "mysql"
+    engine_version = "8.0" 
+    instance_class = "db.t3.micro"
+    username = "admin" #The username for the database instance. This is required when creating a new RDS instance.
+    password = "admin123" #The password for the database instance. This is required when creating a new RDS instance.
+    parameter_group_name = "default.mysql8.0" #The name of the DB parameter group to associate with this instance. If you don't specify a value, then the default DB parameter group for the specified engine and version is used.
+    db_subnet_group_name = aws_db_subnet_group.db-subnet-group.name
+    vpc_security_group_ids = [aws_security_group.backend-sg.id] #The VPC security groups to associate with the RDS instance.
+    skip_final_snapshot = true #Whether to skip the final DB snapshot when the DB instance is deleted.
+    deletion_protection = true
+    publicly_accessible = false
+    backup_retention_period = 3
+    backup_window = "03:00-06:00"
+    db_name =var.db_name
+    tags = {
+        Name = "rds-instance"
+        Environment = "production"
+    }
+}
+
+#Creating code bucket for storing application code
+resource "aws_s3_bucket" "code-bucket" {
+    bucket = "code-bucket-1234567890" 
+
+    tags = {
+        Name = "code-bucket"
+        Environment = "production"
+    }
+}
+
