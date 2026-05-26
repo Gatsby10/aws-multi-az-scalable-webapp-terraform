@@ -1,3 +1,21 @@
+#checkov
+resource "null_resource" "checkov_scan" {
+  provisioner "local-exec" {
+    command = "./checkov_scan.sh"
+    interpreter = [ "bash", "-c"]
+  }
+provisioner "local-exec" {
+when = destroy
+command = "rm -f checkov_output.json"
+}
+  triggers = {
+    always_run = timestamp()
+  }
+}
+output "checkov_scan_status" {
+value = "checkov scan completed check the output.json file for details"
+}
+
 #Creating a VPC
 resource "aws_vpc" "main" {
     cidr_block = "10.0.0.0/16"
@@ -234,7 +252,7 @@ resource "aws_secretsmanager_secret_version" "rds_credentials_version" {
 
 }
 
-#CREATING RDS
+#Creating RDS
 resource "aws_db_instance" "rds-instance" {
     identifier = "rds-instance"
     allocated_storage = 20
