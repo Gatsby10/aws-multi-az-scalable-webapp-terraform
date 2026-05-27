@@ -288,3 +288,69 @@ resource "aws_s3_bucket" "code-bucket" {
     }
 }
 
+#Block all public access
+resource "aws_s3_bucket_public_access_block" "public_access" {
+    bucket = aws_s3_bucket.code-bucket.id
+
+    block_public_acls = true
+    block_public_policy = false
+    ignore_public_acls = true
+    restrict_public_buckets = true
+}
+
+#Create IAM Role for EC2 to access S3
+resource "aws_iam_role" "ec2_role" {
+    name = "ec2_s3_role"
+
+    assume_role_policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+            {
+                Action = "sts:AssumeRole"
+                Effect = "Allow"
+                Principal = {
+                    Service = "ec2.amazonaws.com"
+                }
+            }
+        ]
+    })
+
+    tags = {
+        Name = "ec2_s3_role"
+        Environment = "production"
+    }
+}
+
+#Creating media bucket iam policy
+resource "aws_iam_policy" "media_iam_policy" {
+    name = "media_iam_policy"
+
+    policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+            {
+                Action = ["s3:*"]
+                Effect = "Allow"
+                Resource = ["*"]
+            },
+        ]
+    })
+
+    tags = {
+        Name = "media_iam_policy"
+        Environment = "production"
+    }
+}
+
+#Creating iam role policy attachment for s3 bucket
+resource "aws_iam_role_policy_attachment" "iam_s3_attachment" {
+    role = aws_iam_role.ec2_role.name
+    policy_arn = aws_iam_policy.media_iam_policy.arn
+}
+
+#Creating IAM instance profile
+resource "aws_iam_instance_profile" "iam_instance_profile1" {
+    name = "instance_profile12"
+    role = aws_iam_role.ec2_role.name
+}
+
