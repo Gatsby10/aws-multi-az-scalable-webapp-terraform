@@ -729,3 +729,105 @@ resource "aws_acm_certificate_validation" "cert-validation" {
   validation_record_fqdns = [for record in aws_route53_record.validate-record : record.fqdn]
 
 }
+
+# creating a hosted zone
+
+data "aws_route53_zone" "primary" {
+
+  name = "gatsby-devops.com."
+
+}
+
+
+#creating aws_cloudfront_distribution
+
+resource "aws_cloudfront_distribution" "cdn" {
+
+  origin {
+
+    domain_name = aws_s3_bucket.media-bucket.bucket_regional_domain_name #Points CloudFront to your S3 bucket endpoint
+
+    origin_id = local.s3_origin_id
+
+  }
+
+  enabled = true
+
+
+  # Default cache behavior configuration for serving images
+
+  default_cache_behavior {
+
+    allowed_methods = ["GET", "HEAD"]
+
+    cached_methods = ["GET", "HEAD"]
+
+    target_origin_id = local.s3_origin_id
+
+    forwarded_values {
+
+      query_string = false # Disable query string forwarding as images don't need them
+
+      cookies {
+
+        forward = "none" # No need to forward cookies for serving static images
+
+      }
+
+    }
+
+    viewer_protocol_policy = "redirect-to-https" # Allow requests to HTTPS and HTTP
+
+    min_ttl = 3600 # Minimum TTL (1 hour) for caching
+
+    default_ttl = 86400 # Default TTL (1 day) for caching
+
+    max_ttl = 31536000 # Maximum TTL (1 year) for caching
+
+  }
+
+  # Using the most cost-effective CloudFront price class
+
+  price_class = "PriceClass_100"
+
+  # Restrictions (no geo restrictions applied)
+
+  restrictions {
+
+    geo_restriction {
+
+      restriction_type = "none"
+
+    }
+
+  }
+
+  # Dependency to ensure scanning is completed before distribution
+
+  #depends_on = [null_resource.pre_scan]
+
+  # Tagging for identification
+
+  tags = {
+
+    Name = "cloudfront"
+
+  }
+
+  # Default CloudFront SSL certificate (you can configure a custom certificate if needed)
+
+  viewer_certificate {
+
+    cloudfront_default_certificate = true
+
+  }
+
+}
+
+# Data block to retrieve the CloudFront distribution information
+
+data "aws_cloudfront_distribution" "cdn" {
+
+  id = aws_cloudfront_distribution.cdn.id
+
+}
