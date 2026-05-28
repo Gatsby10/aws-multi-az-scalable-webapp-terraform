@@ -354,3 +354,63 @@ resource "aws_iam_instance_profile" "iam_instance_profile1" {
     role = aws_iam_role.ec2_role.name
 }
 
+#Creating the wordpress server
+
+resource "aws_instance" "ec2-instance" {
+    ami = "ami-02efa8fd15663fc12" 
+    instance_type = "t3.micro"
+    subnet_id = aws_subnet.pubsub-1.id
+    vpc_security_group_ids = [aws_security_group.frontend-sg.id, aws_security_group.backend-sg.id]
+    key_name = aws_key_pair.key.id
+    iam_instance_profile = aws_iam_instance_profile.iam_instance_profile1.name
+    associate_public_ip_address = true
+    user_data = local.wordpress_script
+
+    tags = {
+        Name = "ec2-instance"
+        
+    }
+}
+
+#Creating S3 bucket for media uploads
+resource "aws_s3_bucket" "media-bucket" {
+    bucket = "media-bucket-1234567890" 
+
+    tags = {
+        Name = "media-bucket"
+        Environment = "production"
+    }
+}
+
+#Creating S3 bucket for logs
+resource "aws_s3_bucket" "logs-bucket" {
+    bucket = "logs-bucket-1234567890" 
+
+    tags = {
+        Name = "logs-bucket"
+        Environment = "production"
+    }
+}
+
+resource "aws_s3_bucket_public_access_block" "logs-bucket"{
+    bucket = aws_s3_bucket.logs-bucket.id
+
+    block_public_acls = false # Prevents making objects public via ACLs (Access Control Lists are outdated and messy)
+    block_public_policy = false # we need to make bucket public via policy
+    ignore_public_acls = false # ignore if trying to set a public ACL, good security practice.
+    restrict_public_buckets = false # does not restrict public policies
+}
+
+#Add public access control
+#This is required for public access to work
+
+resource "aws_s3_bucket_public_access_block" "media-bucket" {
+    bucket = aws_s3_bucket.media-bucket.id
+
+    block_public_acls = false # Prevents making objects public via ACLs (Access Control Lists are outdated and messy)
+    block_public_policy = false # we need to make bucket public via policy
+    ignore_public_acls = true # ignore if trying to set a public ACL, good security practice.
+    restrict_public_buckets = false # does not restrict public policies
+}
+  
+
