@@ -545,3 +545,187 @@ resource "aws_lb_target_group_attachment" "lb_attachment_https" {
   port = 443
 
 }
+
+resource "aws_launch_template" "capstone-app-lt" {
+
+  name_prefix = "app-lt-"
+
+  image_id = "ami-02efa8fd15663fc12" # Amazon Linux 2023 AMI 2023.11.20260406.2 x86_64 HVM kernel-6.1 paris region
+
+  instance_type = "t3.micro" #free tier instance type
+
+  key_name = aws_key_pair.key.key_name # to be defined when keypair is made
+
+  iam_instance_profile {
+
+    name = aws_iam_instance_profile.iam-instance-profile1.id
+
+  }
+
+  network_interfaces {
+
+    associate_public_ip_address = true
+
+    security_groups = [aws_security_group.frontend-sg.id]
+
+  }
+
+  user_data = base64encode(local.wordpress_script)
+
+}
+
+#auto scaling policy
+
+resource "aws_autoscaling_policy" "capstone-asg-policy" {
+
+  name = "scale-out-policy"
+
+  scaling_adjustment = 1
+
+  adjustment_type = "ChangeInCapacity"
+
+  cooldown = 300
+
+  autoscaling_group_name = aws_autoscaling_group.capstone-asg.name
+
+}
+
+# Autoscaling group
+
+resource "aws_autoscaling_group" "capstone-asg" {
+
+  name = "capstone-asg"
+
+  desired_capacity = 2
+
+  max_size = 5
+
+  min_size = 1
+
+  health_check_grace_period = 300
+
+  health_check_type = "EC2"
+
+  force_delete = true
+
+
+  launch_template {
+
+    id = aws_launch_template.capstone-app-lt.id
+
+    version = "$Latest"
+
+  }
+
+  vpc_zone_identifier = [
+
+    aws_subnet.team-2-pubsub-1.id,
+
+    aws_subnet.team-2-pubsub-2.id
+
+  ]
+
+  target_group_arns = [aws_lb_target_group.target-group-lb-HTTP.arn, aws_lb_target_group.target-group-lb-HTTPS.arn]
+
+}
+
+#Creating Load balancer listener
+resource "aws_lb_listener" "http_listener" {
+
+  load_balancer_arn = aws_lb.app-lb.arn
+
+  port = 80
+
+  protocol = "HTTP"
+
+  default_action {
+
+    type = "forward"
+
+    target_group_arn = aws_lb_target_group.target-group-lb-HTTP.arn
+
+  }
+
+}
+
+#creating acm certificate for ssl
+
+resource "aws_acm_certificate" "acm-cert" {
+
+  domain_name = "gatsby-devops.com"
+
+  validation_method = "DNS"
+
+  lifecycle {
+
+    create_before_destroy = true
+
+  }
+
+}
+
+# Create a listener for HTTPS
+
+resource "aws_lb_listener" "https_listener" {
+
+  load_balancer_arn = aws_lb.app-lb.arn
+
+  port = 443
+
+  protocol = "HTTPS"
+
+  certificate_arn = aws_acm_certificate.acm-cert.arn
+
+  ssl_policy = "ELBSecurityPolicy-2016-08"
+
+  default_action {
+
+    type = "forward"
+
+    target_group_arn = aws_lb_target_group.target-group-lb-HTTPS.arn
+
+  }
+
+
+}
+
+#creat another target group listener for https
+
+
+resource "aws_route53_record" "validate-record" {
+
+  for_each = {
+
+    for dvo in aws_acm_certificate.acm-cert.domain_validation_options : dvo.domain_name => {
+
+      name = dvo.resource_record_name
+
+      record = dvo.resource_record_value
+
+      type = dvo.resource_record_type
+
+    }
+
+  }
+
+  allow_overwrite = true
+
+  name = each.value.name
+
+  records = [each.value.record]
+
+  ttl = 60
+
+  type = each.value.type
+
+  zone_id = data.aws_route53_zone.primary.zone_id
+
+}
+
+resource "aws_acm_certificate_validation" "cert-validation" {
+
+  certificate_arn = aws_acm_certificate.acm-cert.arn
+
+  validation_record_fqdns = [for record in aws_route53_record.validate-record : record.fqdn]
+
+}
