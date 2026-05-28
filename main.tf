@@ -409,8 +409,139 @@ resource "aws_s3_bucket_public_access_block" "media-bucket" {
 
     block_public_acls = false # Prevents making objects public via ACLs (Access Control Lists are outdated and messy)
     block_public_policy = false # we need to make bucket public via policy
-    ignore_public_acls = true # ignore if trying to set a public ACL, good security practice.
+    ignore_public_acls = true 
     restrict_public_buckets = false # does not restrict public policies
 }
   
+#Media bucket policy
+resource "aws_s3_bucket_policy" "media_bucket_policy" {
+    bucket = aws_s3_bucket.media-bucket.id
 
+    policy = data.aws_iam_policy_document.media_bucket_policy.json
+}
+
+data "aws_iam_policy_document" "media_bucket_policy" {
+    statement {
+        
+        principals {
+            type = "AWS"
+            identifiers = ["*"]
+        }
+        actions = [
+            "s3:*"
+        ]
+        resources = [
+            aws_s3_bucket.media-bucket.arn, # Allow access to the bucket itself
+            "${aws_s3_bucket.media-bucket.arn}/*"
+        ] 
+    }
+}
+
+#Creating Elastic Load Balancer
+resource "aws_lb" "app-elb" {
+    name = "app-elb"
+    internal = false
+    load_balancer_type = "application"
+    security_groups = [aws_security_group.frontend-sg.id]
+    subnets = [aws_subnet.pubsub-1.id, aws_subnet.pubsub-2.id]
+    enable_deletion_protection = false
+
+    tags = {
+        Name = "app-elb"
+        Environment = "production"
+    }
+}
+
+resource "aws_lb_target_group" "target-group-lb-HTTP" {
+
+  name = "tg-http"
+
+  port = 80
+
+  protocol = "HTTP"
+
+  target_type = "instance"
+
+  vpc_id = aws_vpc.main.id
+
+  health_check {
+
+    path = "/indextest.html"
+
+    interval = 60
+
+    timeout = 30
+
+    healthy_threshold = 3
+
+    unhealthy_threshold = 5
+
+    port = 80
+
+  }
+
+  tags = {
+
+    Name = "http-target-group"
+
+  }
+
+}
+
+resource "aws_lb_target_group" "target-group-lb-HTTPS" {
+
+  name = "tg-https"
+
+  port = 443
+
+  protocol = "HTTPS"
+
+  target_type = "instance"
+
+  vpc_id = aws_vpc.main.id
+
+  health_check {
+
+    path = "/indextest.html"
+
+    interval = 60
+
+    timeout = 30
+
+    healthy_threshold = 3
+
+    unhealthy_threshold = 5
+
+    port = 443
+
+  }
+
+  tags = {
+
+    Name = "https-target-group"
+
+  }
+
+}
+
+# Load balancer attachement
+
+resource "aws_lb_target_group_attachment" "lb_attachment_http" {
+
+  target_group_arn = aws_lb_target_group.target-group-lb-HTTP.arn
+
+  target_id = aws_instance.ec2-instance.id
+
+  port = 80
+
+}
+
+resource "aws_lb_target_group_attachment" "lb_attachment_https" {
+
+  target_group_arn = aws_lb_target_group.target-group-lb-HTTPS.arn
+
+  target_id = aws_instance.ec2-instance.id
+
+  port = 443
+
+}
