@@ -831,3 +831,217 @@ data "aws_cloudfront_distribution" "cdn" {
   id = aws_cloudfront_distribution.cdn.id
 
 }
+
+# Cloudwatch dashboard
+
+resource "aws_cloudwatch_dashboard" "infra-dashboard" {
+
+  dashboard_name = "infra-dashboard"
+
+  dashboard_body = jsonencode({
+
+    widgets = [
+
+      {
+
+        type = "metric",
+
+        x = 0,
+
+        y = 0,
+
+        width = 6,
+
+        height = 6,
+
+        properties = {
+
+          metrics = [
+
+            ["AWS/EC2", "CPUUtilization", "InstanceId", "${aws_instance.team-2-ec2-instance.id}", { "label" : "Average CPU Utilization" }]
+
+          ]
+
+          period = 300
+
+          region = "eu-west-3"
+
+          stacked = false
+
+          stat = "Average"
+
+          title = "EC2 Average CPUUtilization"
+
+          view = "timeSeries"
+
+          yAxis = {
+
+            left = {
+
+              label = "Percentage"
+
+              showUnits = true
+
+            }
+
+          }
+
+        }
+
+      }
+
+    ]
+
+  })
+
+}
+
+
+// Creating cloudwatch metric alarm ec2 instance
+
+resource "aws_cloudwatch_metric_alarm" "CMA_EC2_Instance" {
+
+  alarm_name = "CMA-Instance"
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  evaluation_periods = 2
+
+  metric_name = "CPUUtilization"
+
+  namespace = "AWS/EC2"
+
+  period = 120
+
+  statistic = "Average"
+
+  threshold = 50
+
+  alarm_description = "This metric monitors ec2 cpu utilization"
+
+  alarm_actions = [aws_sns_topic.server_alert.arn]
+
+  dimensions = {
+
+    InstanceId : aws_instance.ec2-instance.id
+
+  }
+
+}
+
+// Creating cloudwatch metric alarm auto-scalling group
+
+resource "aws_cloudwatch_metric_alarm" "CMA_Autoscaling_Group" {
+
+  alarm_name = "CMA-asg"
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  evaluation_periods = 2
+
+  metric_name = "CPUUtilization"
+
+  namespace = "AWS/EC2"
+
+  period = 120
+
+  statistic = "Average"
+
+  threshold = 50
+
+  alarm_description = "This metric monitors asg cpu utilization"
+
+  alarm_actions = [aws_autoscaling_policy.capstone-asg-policy.arn, aws_sns_topic.server_alert.arn]
+
+  dimensions = {
+
+    AutoScalingGroupName = aws_autoscaling_group.capstone-asg.name
+
+  }
+
+}
+
+#creating sns topic
+
+resource "aws_sns_topic" "server_alert" {
+
+  name = "server-alert"
+
+  delivery_policy = <<EOF
+
+{
+
+  "http": {
+
+    "defaultHealthyRetryPolicy": {
+
+      "minDelayTarget": 20,
+
+      "maxDelayTarget": 20,
+
+      "numRetries": 3,
+
+      "numMaxDelayRetries": 0,
+
+      "numNoDelayRetries": 0,
+
+      "numMinDelayRetries": 0,
+
+      "backoffFunction": "linear"
+
+    },
+
+    "disableSubscriptionOverrides": false,
+
+    "defaultThrottlePolicy": {
+
+      "maxReceivesPerSecond": 1
+
+    }
+
+  }
+
+}
+
+EOF
+
+}
+
+#creating sns topic subscription
+
+resource "aws_sns_topic_subscription" "acp_updates_sqs_target" {
+
+  topic_arn = aws_sns_topic.server_alert.arn
+
+  protocol = "email"
+
+  endpoint = var.alert_email
+
+}
+
+
+resource "aws_route53_record" "record" {
+
+  zone_id = data.aws_route53_zone.primary.zone_id
+
+  name = "gatsby-devops.com"
+
+  type = "A"
+
+  alias {
+
+    name = aws_lb.team-2-app-lb.dns_name
+
+    zone_id = aws_lb.team-2-app-lb.zone_id
+
+    evaluate_target_health = true
+
+  }
+
+}
+
+locals {
+
+  s3_origin_id = aws_s3_bucket.media-bucket.id
+
+}
